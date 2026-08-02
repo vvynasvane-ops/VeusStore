@@ -240,6 +240,12 @@
   #toast.show { opacity: 1; }
   #toast.yellow { background: linear-gradient(135deg, var(--yellow), #d97706); color: #1a0030; }
 
+  .form-group { margin-bottom: 18px; }
+  .form-label { display: block; font-family: 'Share Tech Mono', monospace; font-size: 0.72rem; color: var(--yellow); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+  .form-input { width: 100%; background: var(--input-bg); border: 1px solid var(--card-border); color: var(--text-primary); border-radius: 10px; padding: 10px 14px; font-family: 'Exo 2', sans-serif; font-size: 0.9rem; outline: none; transition: border-color 0.2s; }
+  .btn-primary { background: linear-gradient(135deg, var(--purple-bright), #7c3aed); color: white; border: none; border-radius: 10px; padding: 12px 24px; cursor: pointer; font-family: 'Orbitron', monospace; font-size: 0.82rem; font-weight: 700; letter-spacing: 1px; transition: all 0.25s; width: 100%; box-shadow: 0 4px 20px rgba(147,51,234,0.4); }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(147,51,234,0.5); }
+
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: var(--bg-primary); }
   ::-webkit-scrollbar-thumb { background: var(--purple-mid); border-radius: 3px; }
@@ -256,6 +262,15 @@
   .settings-overlay.open { display: block; }
   input[type="file"] { display: none; }
   input[type="color"] { -webkit-appearance: none; width: 34px; height: 34px; border: 2px solid var(--card-border); border-radius: 8px; cursor: pointer; padding: 2px; background: var(--input-bg); }
+
+  /* ── PAYWALL / SUPPORT AD ── */
+  .paywall-icon-wrap { text-align: center; padding: 6px 0 14px; }
+  .paywall-icon-wrap span { font-size: 3rem; filter: drop-shadow(0 0 10px rgba(250,204,21,0.5)); }
+  .copy-field-row { display: flex; gap: 8px; }
+  .copy-field-row .form-input { flex: 1; }
+  .copy-field-row .otp-send-btn { background: linear-gradient(135deg, var(--purple-bright), #7c3aed); color: white; border: none; border-radius: 10px; padding: 10px 14px; cursor: pointer; font-family: 'Orbitron', monospace; font-size: 0.72rem; font-weight: 700; letter-spacing: 1px; transition: all 0.25s; white-space: nowrap; box-shadow: 0 4px 12px rgba(147,51,234,0.4); }
+  .copy-field-row .otp-send-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(147,51,234,0.5); }
+  .paywall-note { text-align: center; font-family: 'Share Tech Mono', monospace; font-size: 0.68rem; color: var(--text-muted); letter-spacing: 1px; margin-top: 14px; }
 </style>
 </head>
 <body>
@@ -369,6 +384,38 @@
   </div>
 </div>
 
+<!-- ── SUPPORT / PAYWALL MODAL (shown on launch/refresh, admin-configured) ── -->
+<div class="modal-overlay" id="paywallModal">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-header">
+      <span class="modal-title" id="paywallTitle">💛 SUPPORT VVYNAS VANE</span>
+      <button class="modal-close" onclick="closePaywallModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="paywall-icon-wrap"><span>💜</span></div>
+      <p id="paywallMessage" style="color:var(--text-secondary);font-size:0.88rem;line-height:1.75;text-align:center;margin-bottom:20px;"></p>
+
+      <div class="form-group" id="paywallMpesaGroup" style="display:none;">
+        <label class="form-label">📱 M-Pesa Number</label>
+        <div class="copy-field-row">
+          <input class="form-input" id="paywallMpesaInput" readonly>
+          <button class="otp-send-btn" onclick="copyPaywallField('paywallMpesaInput')">📋 Copy</button>
+        </div>
+      </div>
+      <div class="form-group" id="paywallPaypalGroup" style="display:none;">
+        <label class="form-label">💳 PayPal</label>
+        <div class="copy-field-row">
+          <input class="form-input" id="paywallPaypalInput" readonly>
+          <button class="otp-send-btn" onclick="copyPaywallField('paywallPaypalInput')">📋 Copy</button>
+        </div>
+      </div>
+
+      <button class="btn-primary" onclick="closePaywallModal()" style="margin-top:6px;">Continue to App</button>
+      <div class="paywall-note">Vvynas Vane will always remain free to use</div>
+    </div>
+  </div>
+</div>
+
 <!-- ── SETTINGS PANEL ── -->
 <div class="settings-panel" id="settingsPanel">
   <div class="settings-header">
@@ -444,6 +491,18 @@ let currentFilter = 'all';
 let currentAppId = null;
 let currentDownloadUrl = '';
 let dbRef = null;
+let settingsRef = null;
+let paywallInitialCheckDone = false;
+
+// Support / paywall ad — read-only here. Content is set by the admin
+// and simply displayed; this file has no write access to it.
+let paywallSettings = {
+  enabled: false,
+  title: '💛 SUPPORT VVYNAS VANE',
+  message: '',
+  mpesaNumber: '',
+  paypalAddress: ''
+};
 
 // ════════════════════════════════════════════════════
 //  INIT
@@ -458,6 +517,11 @@ function init() {
     showSyncBar('⚠ DEMO MODE — configure Firebase to see live apps.', 'error', 0);
     apps = JSON.parse(localStorage.getItem('vvynas_apps') || '[]');
     renderApps();
+    const savedPaywall = localStorage.getItem('vvynas_paywall');
+    if (savedPaywall) {
+      try { paywallSettings = { ...paywallSettings, ...JSON.parse(savedPaywall) }; } catch(e) {}
+    }
+    maybeShowPaywall();
   } else {
     initFirebase();
   }
@@ -491,6 +555,7 @@ function initFirebase() {
     const fbApp = firebase.initializeApp(FIREBASE_CONFIG);
     const db = firebase.database(fbApp);
     dbRef = db.ref('apps');
+    settingsRef = db.ref('settings/paywall');
 
     showSyncBar('⏳ CONNECTING…', 'syncing', 0);
 
@@ -520,10 +585,68 @@ function initFirebase() {
       showSyncBar('❌ DATABASE ERROR — try again later', 'error', 0);
     });
 
+    // Read-only support/paywall ad — reflects whatever the admin has set,
+    // and pops up once per page load/launch if enabled.
+    settingsRef.on('value', snap => {
+      const data = snap.val();
+      if (data) paywallSettings = { ...paywallSettings, ...data };
+      if (!paywallInitialCheckDone) {
+        paywallInitialCheckDone = true;
+        maybeShowPaywall();
+      }
+    }, err => {
+      console.error('Firebase settings read error:', err);
+    });
+
   } catch (err) {
     console.error('Firebase init error:', err);
     showSyncBar('❌ FIREBASE CONFIG ERROR — check your config', 'error', 0);
   }
+}
+
+// ════════════════════════════════════════════════════
+//  PAYWALL / SUPPORT AD (display-only)
+// ════════════════════════════════════════════════════
+function maybeShowPaywall() {
+  if (!paywallSettings.enabled) return;
+  if (!paywallSettings.message && !paywallSettings.mpesaNumber && !paywallSettings.paypalAddress) return;
+
+  document.getElementById('paywallTitle').textContent = paywallSettings.title || '💛 SUPPORT VVYNAS VANE';
+  document.getElementById('paywallMessage').textContent = paywallSettings.message || '';
+
+  const mpesaGroup = document.getElementById('paywallMpesaGroup');
+  if (paywallSettings.mpesaNumber) {
+    document.getElementById('paywallMpesaInput').value = paywallSettings.mpesaNumber;
+    mpesaGroup.style.display = 'block';
+  } else {
+    mpesaGroup.style.display = 'none';
+  }
+
+  const paypalGroup = document.getElementById('paywallPaypalGroup');
+  if (paywallSettings.paypalAddress) {
+    document.getElementById('paywallPaypalInput').value = paywallSettings.paypalAddress;
+    paypalGroup.style.display = 'block';
+  } else {
+    paypalGroup.style.display = 'none';
+  }
+
+  document.getElementById('paywallModal').classList.add('open');
+}
+
+function closePaywallModal() {
+  document.getElementById('paywallModal').classList.remove('open');
+}
+
+function copyPaywallField(inputId) {
+  const input = document.getElementById(inputId);
+  input.select();
+  input.setSelectionRange(0, 99999);
+  navigator.clipboard.writeText(input.value).then(() => {
+    showToast('📋 Copied to clipboard!', true);
+  }).catch(() => {
+    document.execCommand('copy');
+    showToast('📋 Copied to clipboard!', true);
+  });
 }
 
 // ── SYNC BAR ──
@@ -731,6 +854,7 @@ function showToast(msg, yellow=false) {
 
 // ── CLOSE MODALS ON OVERLAY CLICK ──
 document.getElementById('detailModal').addEventListener('click', function(e){ if(e.target===this) closeDetailModal(); });
+document.getElementById('paywallModal').addEventListener('click', function(e){ if(e.target===this) closePaywallModal(); });
 
 init();
 </script>
