@@ -1054,8 +1054,8 @@ function appCard(a, i, favs) {
   const badge = updateFlag(a) ? 'upd' : badgeOf(a);
   const links = getLinks(a);
   const isFav = favs.has(appKey(a));
-  let btnLabel = '⬇ GET';
-  if (links.length === 1) btnLabel = links[0].os === 'android' ? '⬇ APK' : '⬇ ' + OS_META[links[0].os].short.toUpperCase();
+  let btnLabel = '⬇ DOWNLOAD';
+  if (platformOf(a) !== 'both' && links.length === 1) btnLabel = links[0].os === 'android' ? '⬇ APK' : '⬇ ' + OS_META[links[0].os].short.toUpperCase();
   const shots = a.shotCount ? `<span class="meta-pill">🖼 ${+a.shotCount}</span>` : '';
   return `
   <div class="app-card${a.featured ? ' is-featured' : ''}" style="animation-delay:${i*0.06}s" onclick="openDetail('${k}')">
