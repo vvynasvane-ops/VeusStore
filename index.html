@@ -498,6 +498,20 @@ body.menu-open{ overflow: hidden; }
 .upd-note b{color:var(--yellow)}
 .form-group{margin-bottom:14px}.copy-field-row{display:flex;gap:10px}.copy-field-row .form-input{flex:1;min-width:0}
 
+
+/* ── Category show/hide ── */
+.cat-panel{display:grid;grid-template-rows:1fr;margin-top:-12px;transition:grid-template-rows .38s cubic-bezier(.4,0,.2,1),opacity .28s ease,margin-top .38s ease}
+.cat-panel.collapsed{grid-template-rows:0fr;opacity:0;margin-top:0;pointer-events:none}
+.cat-panel-inner{overflow:hidden;min-height:0;padding:4px 4px 0;margin:-4px -4px 0}
+.cat-toggle{display:inline-flex;align-items:center;gap:8px}
+.cat-toggle .ct-chev{font-size:.8em;transition:transform .3s ease}
+.cat-toggle.open .ct-chev{transform:rotate(180deg)}
+.ct-count,.cc{background:rgba(255,255,255,.16);border-radius:10px;padding:0 7px;font-size:.7rem;font-style:normal;font-weight:700}
+.cc{margin-left:6px;opacity:.85}
+.ct-active{color:var(--yellow);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom}
+.filter-btn:hover .ct-active,.filter-btn.active .ct-active{color:#fff}
+.ct-clear{margin-left:2px;padding:0 4px;border-radius:50%;opacity:.8}.ct-clear:hover{opacity:1;background:rgba(255,255,255,.2)}
+@media (prefers-reduced-motion:reduce){.cat-panel,.cat-toggle .ct-chev{transition:none}}
 </style>
 </head>
 <body>
@@ -591,6 +605,7 @@ body.menu-open{ overflow: hidden; }
       <button class="plat-tab" data-p="desktop" onclick="setPlatform('desktop', this)">🖥 Desktop</button>
     </div>
     <div class="toolbar-right">
+      <button class="filter-btn cat-toggle open" id="catToggle" onclick="toggleCats()" aria-expanded="true" aria-controls="catPanel" title="Show / hide categories (press C)" style="display:none"><span class="ct-ico">🗂</span><span id="catToggleLabel">Categories</span><span class="ct-chev">▾</span></button>
       <button class="filter-btn" id="favToggle" onclick="toggleFavFilter()">♥ Favorites</button>
       <select class="form-select sort-select" id="sortSelect" onchange="setSort(this.value)" aria-label="Sort apps">
         <option value="featured">Featured &amp; newest</option>
@@ -600,9 +615,13 @@ body.menu-open{ overflow: hidden; }
       </select>
     </div>
   </div>
-  <div class="toolbar" style="margin-top:-12px;">
-    <div class="toolbar-left" id="categoryFilters">
-      <button class="filter-btn active" onclick="setFilter('all', this)">All categories</button>
+  <div class="cat-panel" id="catPanel">
+    <div class="cat-panel-inner">
+      <div class="toolbar" style="margin-bottom:24px;">
+        <div class="toolbar-left" id="categoryFilters">
+          <button class="filter-btn active" onclick="setFilter('all', this)">All categories</button>
+        </div>
+      </div>
     </div>
   </div>
   <div class="section-title">Featured Applications</div>
@@ -1096,7 +1115,8 @@ function appCard(a, i, favs) {
 function rebuildFilters() {
   const cats = ['all', ...new Set(apps.map(a=>a.category).filter(Boolean))];
   const bar = document.getElementById('categoryFilters');
-  bar.innerHTML = cats.map(c=>`<button class="filter-btn${c===currentFilter?' active':''}" data-c="${esc(c)}" onclick="setFilter(this.dataset.c,this)">${c==='all'?'All categories':esc(c)}</button>`).join('');
+  bar.innerHTML = cats.map(c=>`<button class="filter-btn${c===currentFilter?' active':''}" data-c="${esc(c)}" onclick="setFilter(this.dataset.c,this)">${c==='all'?'All categories':esc(c)} <i class="cc">${c==='all'?apps.length:apps.filter(a=>a.category===c).length}</i></button>`).join('');
+  applyCats();
 }
 
 function setFilter(cat, el) {
@@ -1505,6 +1525,29 @@ function showToast(msg, yellow=false) {
   t.className = 'show' + (yellow ? ' yellow' : '');
   setTimeout(()=>{ t.className = ''; }, 2800);
 }
+
+// ════════════════════════════════════════════════════
+//  CATEGORY SHOW / HIDE — remembered per device; press "C" to toggle
+// ════════════════════════════════════════════════════
+let catsOpen = null;
+function applyCats() {
+  const p = document.getElementById('catPanel'), b = document.getElementById('catToggle'); if (!p || !b) return;
+  if (catsOpen === null) { const s = lsGet('vvynas_cats_open', null); catsOpen = s === null ? !window.matchMedia('(max-width: 640px)').matches : !!s; }
+  const cats = [...new Set(apps.map(a => a.category).filter(Boolean))];
+  const open = !!(catsOpen && cats.length), act = currentFilter !== 'all' ? currentFilter : '';
+  b.style.display = cats.length ? '' : 'none';
+  p.classList.toggle('collapsed', !open); b.classList.toggle('open', open);
+  b.setAttribute('aria-expanded', String(open)); p.setAttribute('aria-hidden', String(!open));
+  document.getElementById('catToggleLabel').innerHTML = (act && !open)
+    ? `Categories: <b class="ct-active">${esc(act)}</b><span class="ct-clear" role="button" title="Clear filter" onclick="event.stopPropagation();setFilter('all')">✕</span>`
+    : `Categories <span class="ct-count">${cats.length}</span>`;
+}
+function toggleCats() { catsOpen = !(catsOpen === null ? true : catsOpen); lsSet('vvynas_cats_open', catsOpen); applyCats(); }
+document.addEventListener('keydown', e => {
+  if (e.key.toLowerCase() !== 'c' || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) || document.querySelector('.modal-overlay.open')) return;
+  toggleCats();
+});
 
 
 document.getElementById('detailModal').addEventListener('click', function (e) { if (e.target === this) closeDetailModal(); });
